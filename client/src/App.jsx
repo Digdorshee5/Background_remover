@@ -28,7 +28,7 @@ const App = () => {
         setSuccessMessage("");
 
         try {
-            const response = await axios.post("https://background-remover-ogas.onrender.com/remove-bg", formData, {
+            const response = await axios.post("http://localhost:5000/remove-bg", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
 
