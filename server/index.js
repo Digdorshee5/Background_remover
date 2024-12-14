@@ -5,15 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
-const { execSync } = require("child_process");
-
-try {
-    console.log("Installing Python dependencies...");
-    execSync("pip install -r requirements.txt", { stdio: "inherit" });
-} catch (err) {
-    console.error("Failed to install Python dependencies:", err);
-}
-
+const axios = require("axios");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
@@ -31,28 +23,50 @@ app.use(
     })
 );
 
-app.post("/remove-bg", upload.single("image"), (req, res) => {
-    const inputPath = req.file.path;
-    console.log(inputPath);
-    const outputPath = `output-${Date.now()}.png`;
+app.post("/remove-bg", upload.single("image"), async (req, res) => {
+    const { imageUrl } = req.body; // Accept image URL from the request body
 
-    const pythonProcess = spawn("python", ["./remove_bg.py", inputPath, outputPath]);
-                console.log(outputPath);
-    pythonProcess.on("close", (code) => {
-        if (code === 0) {
-            const image = fs.readFileSync(outputPath, { encoding: "base64" });
-            res.json({ image });
-            console.log(res.json({ image }));
-            setTimeout(() => {
-                fs.unlinkSync(inputPath); // Clean up
-                fs.unlinkSync(outputPath);
-                console.log("both files are deleted");
-            }, 60000);
+    let inputPath;
+    let outputPath = `output-${Date.now()}.png`;
 
+    try {
+        if (imageUrl) {
+            // Handle image URL
+            const response = await axios({
+                url: imageUrl,
+                method: "GET",
+                responseType: "arraybuffer",
+            });
+            const ext = path.extname(imageUrl).split("?")[0] || ".jpg"; // Extract extension or use default
+            inputPath = `uploads/input-${Date.now()}${ext}`;
+            fs.writeFileSync(inputPath, response.data); // Save the image to the uploads folder
+        } else if (req.file) {
+            // Handle uploaded image
+            inputPath = req.file.path;
         } else {
-            res.status(500).send("Error processing image.");
+            return res.status(400).send("No image provided.");
         }
-    });
+
+        // Call the Python script
+        const pythonProcess = spawn("python", ["./remove_bg.py", inputPath, outputPath]);
+
+        pythonProcess.on("close", (code) => {
+            if (code === 0) {
+                const image = fs.readFileSync(outputPath, { encoding: "base64" });
+                res.json({ image });
+                setTimeout(() => {
+                    fs.unlinkSync(inputPath); // Clean up
+                    fs.unlinkSync(outputPath);
+                }, 60000);
+            } else {
+                res.status(500).send("Error processing image.");
+            }
+        });
+    } catch (error) {
+        console.error("Error processing request:", error);
+        res.status(500).send("Error processing request.");
+        if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    }
 });
 
 const PORT = 5000;

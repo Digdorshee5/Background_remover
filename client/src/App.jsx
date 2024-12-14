@@ -4,33 +4,47 @@ import "./App.css";
 
 const App = () => {
     const [selectedFile, setSelectedFile] = useState(null);
+    const [imageUrl, setImageUrl] = useState("");
     const [outputImage, setOutputImage] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
 
     const handleFileChange = (e) => {
         setSelectedFile(e.target.files[0]);
+        setImageUrl(""); // Reset image URL if a file is selected
+        setOutputImage("");
+        setSuccessMessage("");
+    };
+
+    const handleUrlChange = (e) => {
+        setImageUrl(e.target.value);
+        setSelectedFile(null); // Reset file if a URL is entered
         setOutputImage("");
         setSuccessMessage("");
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!selectedFile) {
-            alert("Please upload an image first!");
+        if (!selectedFile && !imageUrl) {
+            alert("Please upload an image or provide a URL first!");
             return;
         }
-
-        const formData = new FormData();
-        formData.append("image", selectedFile);
 
         setIsLoading(true);
         setSuccessMessage("");
 
         try {
-            const response = await axios.post("http://localhost:5000/remove-bg", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
+            let response;
+
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append("image", selectedFile);
+                response = await axios.post("http://localhost:5000/remove-bg", formData, {
+                    headers: { "Content-Type": "multipart/form-data" },
+                });
+            } else if (imageUrl) {
+                response = await axios.post("http://localhost:5000/remove-bg", { imageUrl });
+            }
 
             setOutputImage(`data:image/png;base64,${response.data.image}`);
             setSuccessMessage("Congrats! Your image has been processed.");
@@ -52,7 +66,7 @@ const App = () => {
     };
 
     return (
-        <div className="app" style={{flex:"center"}}>
+        <div className="app" style={{ flex: "center" }}>
             <header className="header">
                 <h1>Background Removal Tool</h1>
                 <p>Remove the background of your images easily and download the result!</p>
@@ -63,6 +77,19 @@ const App = () => {
                     Upload Image
                     <input type="file" accept="image/*" onChange={handleFileChange} />
                 </label>
+                <div className="or-divider">OR</div>
+                <label className="url-label">
+                    Enter Image URL:
+                    <input
+                        type="text"
+                        placeholder="https://example.com/image.jpg"
+                        value={imageUrl}
+                        onChange={handleUrlChange}
+                        style={{backgroundColor: 'yellow'}}
+                    />
+                </label>
+                <br />
+                <br />
                 <button className="btn-primary" type="submit">
                     Remove Background
                 </button>
